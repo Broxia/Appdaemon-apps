@@ -119,17 +119,17 @@ class SmartCarCharger(hass.Hass):
       self.run_at(self.handleEnergyPriceData, tomorrowAvailableTime)
 
     #Convert times to DateTime
-    self._pricePrognosis['hour'] = pd.to_datetime(self._pricePrognosis['hour'])
+    self._pricePrognosis['start'] = pd.to_datetime(self._pricePrognosis['start'])
     
   def calculateCheapestHours(self, kwargs = ""):
     self.updateEnergyPriceData()
     #remove all indexes in the past
-    cheapestHours = self._pricePrognosis[self._pricePrognosis.hour + timedelta(hours=1) > self.get_now()]
+    cheapestHours = self._pricePrognosis[self._pricePrognosis.start + timedelta(hours=1) > self.get_now()]
     #Remove all indexes below defined max price
     maxPrice = float(self.get_state(self._maxPrice))/ 100
     cheapestHours = cheapestHours[cheapestHours.price < maxPrice]
     #Sort by value
-    cheapestHours.sort_values(by=['price', 'hour'], inplace=True)
+    cheapestHours.sort_values(by=['price', 'start'], inplace=True)
     # self.log(cheapestHours)
     return cheapestHours
 
@@ -157,7 +157,7 @@ class SmartCarCharger(hass.Hass):
         chargedByDate = date.today() + timedelta(days=1)
       chargedBy = datetime.combine(chargedByDate, datetime.strptime(chargedByTime, '%H:%M:%S').time(), tzinfo=ZoneInfo('Europe/Copenhagen'))
 
-      cheapestHours = cheapestHours[cheapestHours.hour < chargedBy]
+      cheapestHours = cheapestHours[cheapestHours.start < chargedBy]
       #If time to finish charging is less than available, just charge now
       if fullHours + 1 > cheapestHours.size:
         self.log("Will not complete charging within required time, start charging now")
@@ -171,14 +171,14 @@ class SmartCarCharger(hass.Hass):
         data["end"].append(end)  
         fullHours -= 1 
         chargedBy = start
-        cheapestHours = cheapestHours[cheapestHours.hour < start]
+        cheapestHours = cheapestHours[cheapestHours.start < start]
         self.log("socLimit > 90%, start = {start}, end = {end}".format(start = start, end = end))
 
     cheapestHours = cheapestHours.reset_index(drop=True)
 
     i = 0
     while i < fullHours and i < len(cheapestHours.index):
-      start = cheapestHours.loc[i].hour
+      start = cheapestHours.loc[i].start
       end = start + timedelta(hours=1)
       if start < self.get_now() and end > self.get_now(): #If timezone is started
         start = self.get_now() + timedelta(seconds=30)
@@ -198,13 +198,13 @@ class SmartCarCharger(hass.Hass):
       i += 1
 
     while minutes > 0 and i < len(cheapestHours.index):
-      start = cheapestHours.loc[i].hour
+      start = cheapestHours.loc[i].start
       end = start + timedelta(minutes=minutes)
       if start < self.get_now(): # if timezone is started
         start = self.get_now() + timedelta(seconds=30)
         end = start + timedelta(minutes=minutes)
-        if end > cheapestHours.loc[i].hour.to_pydatetime() + timedelta(hours=1): #If timezone ends before required minutes
-          end = cheapestHours.loc[i].hour.to_pydatetime() + timedelta(hours=1)
+        if end > cheapestHours.loc[i].start.to_pydatetime() + timedelta(hours=1): #If timezone ends before required minutes
+          end = cheapestHours.loc[i].start.to_pydatetime() + timedelta(hours=1)
         if self.get_state(self._disableChargedBy) == "off" and end > chargedBy:
           end = chargedBy
   
