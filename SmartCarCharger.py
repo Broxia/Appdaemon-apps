@@ -24,6 +24,7 @@ class SmartCarCharger(hass.Hass):
 
     self._chargeHandles = []
     self._initiateHandle = ""
+    self._priceHandle = ""
 
     self._pricePrognosis = pd.DataFrame()
     self._remainingTime = 0
@@ -40,7 +41,18 @@ class SmartCarCharger(hass.Hass):
     self.listen_state(self.parameterChanged, self._minCharge)
     self.listen_state(self.parameterChanged, self._location, new = "home")
 
+    self.run_daily(self.setUpdateForTomorrowsPrices, "01:00:00")
+
     self.cableStateChanged(self._cableState, "None", "off", self.get_state(self._cableState), "") #Check state at startup
+
+  def setUpdateForTomorrowsPrices(self, kwargs):
+    if(self.timer_running(self._priceHandle)):
+      self.cancel_timer(self._priceHandle)
+
+    stateTomorrow = self.get_state(self._energyPricesTomorrow, attribute="all")
+    dataTomorrow = stateTomorrow['attributes']
+    tomorrowAvailableTime = pd.to_datetime(dataTomorrow.get("available_at")) + timedelta(minutes=5)
+    self._priceHandle = self.run_at(self.handleEnergyPriceData, datetime.fromisoformat(str(tomorrowAvailableTime)))
     
   def cableStateChanged(self, entity, attribute, old, new, kwargs):
     if(new == "on"):
@@ -53,7 +65,6 @@ class SmartCarCharger(hass.Hass):
       self.clearHandles()
       self._pricePrognosis.iloc[0:0]
 
-  
   def enableStateChanged(self, entity, attribute, old, new, kwargs):
     if(new == "off" and self.get_state(self._cableState) == "on"):   
       self.startCharging() #Smart charge turned off and cable attached, start charging
@@ -107,16 +118,11 @@ class SmartCarCharger(hass.Hass):
     pricePrognosisToday = pd.DataFrame.from_dict(dataToday.get('prices'))
     
     #If tomorrows prices available, include them otherwise plan when to update 
-    if tomorrow_valid:
+    if tomorrow_valid == "on":
       pricePrognosisTomorrow = pd.DataFrame.from_dict(dataTomorrow.get('prices'))
       self._pricePrognosis = pd.concat([pricePrognosisToday, pricePrognosisTomorrow], ignore_index=True)
-      #lets do another update at 10 to get a new timer for tomorrow valid
-      updateDate = date.today() + timedelta(days=1)
-      updateAt = datetime.combine(updateDate, datetime.strptime("10:00:00", '%H:%M:%S').time(), tzinfo=ZoneInfo('Europe/Copenhagen'))
-      self.run_at(self.handleEnergyPriceData, updateAt) 
     else:
-      tomorrowAvailableTime = pd.to_datetime(dataTomorrow.get("available_at")) + timedelta(minutes=5)
-      self.run_at(self.handleEnergyPriceData, tomorrowAvailableTime)
+      self.setUpdateForTomorrowsPrices()
 
     #Convert times to DateTime
     self._pricePrognosis['start'] = pd.to_datetime(self._pricePrognosis['start'])
