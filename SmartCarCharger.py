@@ -45,7 +45,7 @@ class SmartCarCharger(hass.Hass):
 
     self.cableStateChanged(self._cableState, "None", "off", self.get_state(self._cableState), "") #Check state at startup
 
-  def setUpdateForTomorrowsPrices(self, kwargs):
+  def setUpdateForTomorrowsPrices(self, kwargs=""):
     if(self.timer_running(self._priceHandle)):
       self.cancel_timer(self._priceHandle)
 
@@ -116,12 +116,13 @@ class SmartCarCharger(hass.Hass):
     tomorrow_valid = self.get_state(self._energyPricesTomorrow)
     
     pricePrognosisToday = pd.DataFrame.from_dict(dataToday.get('prices'))
-    
+
     #If tomorrows prices available, include them otherwise plan when to update 
     if tomorrow_valid == "on":
       pricePrognosisTomorrow = pd.DataFrame.from_dict(dataTomorrow.get('prices'))
       self._pricePrognosis = pd.concat([pricePrognosisToday, pricePrognosisTomorrow], ignore_index=True)
     else:
+      self._pricePrognosis = pricePrognosisToday
       self.setUpdateForTomorrowsPrices()
 
     #Convert times to DateTime
