@@ -246,7 +246,7 @@ class SmartCarCharger(hass.Hass):
   def chargeScheduler(self, start, end, nextStart, prevEnd):
     if(prevEnd == "None" or start != prevEnd):
       self.log("Scheduled charging start at {start}".format(start=start))
-      if self.now_is_between(start.strftime("%H:%M:%S"), end.strftime("%H:%M:%S")): 
+      if self.isToday(start=start) and self.now_is_between(start.strftime("%H:%M:%S"), end.strftime("%H:%M:%S")): 
         self.log("Start time has passed, starting now")
         self.startCharging()
       else:
@@ -257,6 +257,9 @@ class SmartCarCharger(hass.Hass):
     elif( nextStart != end):
       self.log("Scheduled charging ends at {end}".format(end=end))
       self._chargeHandles.append(self.run_at(self.stopCharging, datetime.fromisoformat(str(end))))
+
+  def isToday(self, start, kwargs = ""):
+    return datetime.today().strftime('%Y-%m-%d') == start.strftime("%Y-%m-%d")
 
   def clearHandles(self, kwargs = ""):
     for h in self._chargeHandles:
